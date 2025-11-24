@@ -90,7 +90,6 @@ async def extract_case_from_upload(file: UploadFile = File(...)):
     
     return result
 
-# Case extraction from URL
 @app.post("/extract-case/url", response_model=CaseExtractionResponse)
 async def extract_case_from_url(request: PdfUrlRequest):
     """
@@ -103,48 +102,69 @@ async def extract_case_from_url(request: PdfUrlRequest):
         if not pdf_url.startswith(('http://', 'https://')):
             pdf_url = f'https://{pdf_url}'
         
-        # Validate URL format
-        if not pdf_url.lower().endswith('.pdf'):
-            print(f"Warning: URL does not end with .pdf: {pdf_url}")
-        
-        # Download PDF from URL with SSL verification disabled for problematic sites
+        # Enhanced headers to mimic a real browser
         headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+            'Accept-Language': 'en-US,en;q=0.9',
+            'Accept-Encoding': 'gzip, deflate, br',
+            'DNT': '1',
+            'Connection': 'keep-alive',
+            'Upgrade-Insecure-Requests': '1',
+            'Sec-Fetch-Dest': 'document',
+            'Sec-Fetch-Mode': 'navigate',
+            'Sec-Fetch-Site': 'none',
+            'Sec-Fetch-User': '?1',
+            'Cache-Control': 'max-age=0',
+            'sec-ch-ua': '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
+            'sec-ch-ua-mobile': '?0',
+            'sec-ch-ua-platform': '"Windows"'
         }
         
-        # Try with SSL verification first, then without if it fails
-        try:
-            response = requests.get(pdf_url, headers=headers, timeout=30, verify=True)
-            response.raise_for_status()
-        except requests.exceptions.SSLError:
-            # If SSL verification fails, try without verification
-            print(f"SSL verification failed for {pdf_url}, retrying without verification...")
-            response = requests.get(pdf_url, headers=headers, timeout=30, verify=False)
-            response.raise_for_status()
-        except requests.exceptions.RequestException as e:
-            raise HTTPException(
-                status_code=400, 
-                detail=f"Failed to download PDF from URL: {str(e)}"
-            )
+        # Use session with cookies and retries
+        session = requests.Session()
+        session.headers.update(headers)
         
-        # Check content type
-        content_type = response.headers.get('content-type', '').lower()
-        if 'pdf' not in content_type and 'application/octet-stream' not in content_type:
-            # For SAFLII, sometimes they don't set proper content-type, so check the content
-            if not response.content.startswith(b'%PDF'):
+        # Add a small delay to be more human-like
+        import time
+        time.sleep(2)
+        
+        # Try to access the main page first to get cookies
+        try:
+            main_page = session.get('https://www.saflii.org', timeout=10, verify=False)
+            print(f"Main page status: {main_page.status_code}")
+        except:
+            print("Could not access main page, continuing anyway...")
+        
+        # Now try to download the PDF
+        response = session.get(pdf_url, timeout=30, verify=False, allow_redirects=True)
+        
+        # Check if we got redirected to a blocking page
+        if 'text/html' in response.headers.get('content-type', '') and len(response.content) < 10000:
+            # Might be a blocking page, check content
+            content = response.text.lower()
+            if any(blocked in content for blocked in ['access denied', 'forbidden', 'bot', 'blocked']):
                 raise HTTPException(
                     status_code=400, 
-                    detail=f"URL does not point to a valid PDF. Content-Type: {content_type}"
+                    detail="Website is blocking automated access. Please try uploading the PDF file directly."
                 )
+        
+        response.raise_for_status()
+        
+        # Check if it's actually a PDF
+        if not response.content.startswith(b'%PDF'):
+            # Check if it's HTML (blocking page)
+            if response.content.startswith(b'<!DOCTYPE') or response.content.startswith(b'<html'):
+                raise HTTPException(
+                    status_code=400, 
+                    detail="Received HTML instead of PDF. The website may be blocking automated access."
+                )
+            raise HTTPException(status_code=400, detail="Downloaded content is not a valid PDF file")
         
         # Check file size
         content_length = response.headers.get('content-length')
-        if content_length and int(content_length) > 10 * 1024 * 1024:  # 10MB
+        if content_length and int(content_length) > 10 * 1024 * 1024:
             raise HTTPException(status_code=400, detail="PDF size must be less than 10MB")
-        
-        # Verify it's actually a PDF by checking the magic number
-        if not response.content.startswith(b'%PDF'):
-            raise HTTPException(status_code=400, detail="Downloaded content is not a valid PDF file")
         
         # Create a file-like object from the response content
         pdf_content = io.BytesIO(response.content)
