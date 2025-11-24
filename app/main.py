@@ -98,9 +98,13 @@ async def extract_case_from_url(request: PdfUrlRequest):
     pdf_url = request.pdf_url
     
     try:
+        print(f"🔍 Starting extraction for URL: {pdf_url}")
+        
         # Ensure URL has a scheme
         if not pdf_url.startswith(('http://', 'https://')):
             pdf_url = f'https://{pdf_url}'
+        
+        print(f"📡 Processing URL: {pdf_url}")
         
         # Enhanced headers to mimic a real browser
         headers = {
@@ -114,36 +118,34 @@ async def extract_case_from_url(request: PdfUrlRequest):
             'Sec-Fetch-Dest': 'document',
             'Sec-Fetch-Mode': 'navigate',
             'Sec-Fetch-Site': 'none',
-            'Sec-Fetch-User': '?1',
             'Cache-Control': 'max-age=0',
-            'sec-ch-ua': '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
-            'sec-ch-ua-mobile': '?0',
-            'sec-ch-ua-platform': '"Windows"'
+            'Referer': 'https://www.saflii.org/'
         }
         
-        # Use session with cookies and retries
+        # Use session with cookies
         session = requests.Session()
         session.headers.update(headers)
         
-        # Add a small delay to be more human-like
+        # Add a small delay
         import time
-        time.sleep(2)
+        time.sleep(1)
         
-        # Try to access the main page first to get cookies
-        try:
-            main_page = session.get('https://www.saflii.org', timeout=10, verify=False)
-            print(f"Main page status: {main_page.status_code}")
-        except:
-            print("Could not access main page, continuing anyway...")
+        print("🌐 Attempting to download PDF...")
         
-        # Now try to download the PDF
+        # Download the PDF
         response = session.get(pdf_url, timeout=30, verify=False, allow_redirects=True)
         
-        # Check if we got redirected to a blocking page
-        if 'text/html' in response.headers.get('content-type', '') and len(response.content) < 10000:
-            # Might be a blocking page, check content
-            content = response.text.lower()
-            if any(blocked in content for blocked in ['access denied', 'forbidden', 'bot', 'blocked']):
+        print(f"📄 Response status: {response.status_code}")
+        print(f"📄 Content-Type: {response.headers.get('content-type', 'unknown')}")
+        print(f"📄 Content length: {len(response.content)} bytes")
+        
+        # Check if we got a blocking page
+        content_type = response.headers.get('content-type', '').lower()
+        if 'text/html' in content_type:
+            # Check for blocking indicators in content
+            content_preview = response.text[:500].lower()
+            if any(indicator in content_preview for indicator in ['access denied', 'forbidden', 'bot', 'blocked', 'cloudflare']):
+                print("❌ Blocking page detected")
                 raise HTTPException(
                     status_code=400, 
                     detail="Website is blocking automated access. Please try uploading the PDF file directly."
@@ -153,13 +155,16 @@ async def extract_case_from_url(request: PdfUrlRequest):
         
         # Check if it's actually a PDF
         if not response.content.startswith(b'%PDF'):
+            print("❌ Content is not a PDF")
             # Check if it's HTML (blocking page)
-            if response.content.startswith(b'<!DOCTYPE') or response.content.startswith(b'<html'):
+            if response.content.startswith(b'<!DOCTYPE') or response.content.startswith(b'<html') or b'<html' in response.content[:100]:
                 raise HTTPException(
                     status_code=400, 
-                    detail="Received HTML instead of PDF. The website may be blocking automated access."
+                    detail="Received HTML page instead of PDF. The website may be blocking automated access."
                 )
             raise HTTPException(status_code=400, detail="Downloaded content is not a valid PDF file")
+        
+        print("✅ Valid PDF downloaded")
         
         # Check file size
         content_length = response.headers.get('content-length')
@@ -169,8 +174,12 @@ async def extract_case_from_url(request: PdfUrlRequest):
         # Create a file-like object from the response content
         pdf_content = io.BytesIO(response.content)
         
+        print("🔧 Processing PDF content...")
+        
         # Process the PDF content
         result = case_extractor_service.extract_from_pdf_content(pdf_content, pdf_url)
+        
+        print(f"✅ Extraction result: {result.get('success', False)}")
         
         if not result['success']:
             raise HTTPException(status_code=400, detail=result['error'])
@@ -178,14 +187,22 @@ async def extract_case_from_url(request: PdfUrlRequest):
         return result
         
     except requests.exceptions.RequestException as e:
+        print(f"❌ Request error: {str(e)}")
         raise HTTPException(
             status_code=400, 
             detail=f"Failed to download PDF from URL: {str(e)}"
         )
+    except HTTPException:
+        # Re-raise HTTP exceptions
+        raise
     except Exception as e:
+        print(f"❌ Unexpected error: {str(e)}")
+        print(f"❌ Error type: {type(e).__name__}")
+        import traceback
+        print(f"❌ Traceback: {traceback.format_exc()}")
         raise HTTPException(
             status_code=500, 
-            detail=f"Error processing PDF from URL: {str(e)}"
+            detail=f"Unexpected error processing PDF: {str(e)}"
         )
 
 # Health check endpoint
