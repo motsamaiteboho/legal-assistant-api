@@ -1,7 +1,7 @@
 /* Base layout */
 body {
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  background-color: #f5f7fa;
+  font-family: "Segoe UI", system-ui, sans-serif;
+  background: #f5f7fa;
   margin: 0;
   padding: 24px;
 }
@@ -9,31 +9,28 @@ body {
 .case-extractor {
   max-width: 80%;
   margin: 0 auto;
-  padding: 2rem 1rem;
 }
 
+/* Cards */
 .card {
-  border-radius: 10px;
-  border: 1px solid #dee2e6;
-  background-color: #ffffff;
-  box-shadow: 0 4px 15px rgba(0,0,0,0.08);
-}
-
-.card-body {
+  background: #fff;
+  border: 1px solid #ddd;
+  border-radius: 8px;
   padding: 1.5rem;
 }
 
 .results-header {
   text-align: center;
-  margin-bottom: 1.5rem;
+  margin-bottom: 1.25rem;
 }
 
 .icon-wrapper {
-  font-size: 2.8rem;
+  font-size: 2.4rem;
   color: #198754;
-  margin-bottom: .75rem;
+  margin-bottom: 0.5rem;
 }
 
+/* Grid */
 .results-grid {
   display: flex;
   flex-wrap: wrap;
@@ -41,22 +38,24 @@ body {
 }
 
 .results-grid-item {
-  flex: 1 1 calc(50% - 0.5rem);
+  flex: 1 1 48%;
 }
 
+/* Section Cards */
 .result-card {
-  border-radius: 10px;
-  border: 1px solid #dee2e6;
+  border: 1px solid #ddd;
+  border-radius: 6px;
   overflow: hidden;
 }
 
 .result-card-header {
-  padding: .6rem .9rem;
+  padding: 0.6rem 0.8rem;
   font-size: 1rem;
   font-weight: 600;
-  color: white;
+  color: #fff;
 }
 
+/* Header colors */
 .header-facts { background: #0d6efd; }
 .header-issues { background: #0dcaf0; }
 .header-ratio { background: #ffc107; color: #212529; }
@@ -65,30 +64,42 @@ body {
 .header-evidence { background: #6c757d; }
 
 .result-card-body {
-  padding: .9rem 1rem;
-  font-size: .9rem;
+  padding: 0.8rem 1rem;
+  font-size: 0.9rem;
   color: #212529;
 }
 
+/* Precedents */
 .precedent-item {
   background: #f8f9fa;
-  padding: .5rem;
-  border-radius: 5px;
-  margin-bottom: .4rem;
+  padding: 0.5rem;
+  border-radius: 4px;
+  margin-bottom: 0.4rem;
 }
 
 .precedent-suggested-tag {
   color: #dc3545;
-  font-size: .8rem;
+  font-size: 0.8rem;
 }
 
-.issue-evidence-item { margin-bottom: .6rem; }
-.issue-evidence-issue { font-weight: 600; }
-.issue-evidence-issue::before { content: "↳ "; color: #0d6efd; }
+/* Issue Evidence */
+.issue-evidence-item {
+  margin-bottom: 0.6rem;
+}
 
+.issue-evidence-issue {
+  font-weight: 600;
+}
+
+.issue-evidence-issue::before {
+  content: "↳ ";
+  color: #0d6efd;
+}
+
+/* Footer */
 .footer {
-  margin-top: 1.5rem;
+  margin-top: 1.25rem;
   text-align: center;
-  font-size: .75rem;
+  font-size: 0.75rem;
   color: #6c757d;
 }
