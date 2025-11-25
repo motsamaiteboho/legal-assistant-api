@@ -1,33 +1,283 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
   <title>Case Extraction Summary</title>
+  <style>
+    /* Base layout */
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background-color: #f5f7fa;
+      margin: 0;
+      padding: 24px;
+    }
+
+    .case-extractor {
+      max-width: 80%;
+      margin: 0 auto;
+      padding: 2rem 1rem;
+      box-sizing: border-box;
+    }
+
+    /* Card + grid helpers */
+    .card {
+      border-radius: 10px;
+      border: 1px solid #dee2e6;
+      background-color: #ffffff;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+      overflow: hidden;
+    }
+
+    .card-body {
+      padding: 1.5rem;
+    }
+
+    .results-card {
+      border: 0;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.10);
+    }
+
+    .results-header {
+      text-align: center;
+      margin-bottom: 1.5rem;
+    }
+
+    .results-header h2 {
+      margin: 0 0 0.25rem 0;
+      font-size: 1.6rem;
+      color: #198754;
+      font-weight: 700;
+    }
+
+    .results-header .lead {
+      margin: 0 0 0.4rem 0;
+      font-size: 1rem;
+      color: #212529;
+    }
+
+    .results-header .meta {
+      font-size: 0.8rem;
+      color: #6c757d;
+    }
+
+    .icon-wrapper {
+      margin-bottom: 0.75rem;
+      font-size: 2.8rem;
+      color: #198754;
+    }
+
+    /* Grid layout for the four result cards */
+    .results-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem;
+    }
+
+    .results-grid-item {
+      flex: 1 1 calc(50% - 0.5rem);
+      box-sizing: border-box;
+    }
+
+    /* Individual result cards */
+    .result-card {
+      border-radius: 10px;
+      overflow: hidden;
+      border: 1px solid #dee2e6;
+    }
+
+    .result-card-header {
+      padding: 0.6rem 0.9rem;
+      font-size: 1rem;
+      font-weight: 600;
+      color: #ffffff;
+    }
+
+    .header-facts {
+      background-color: #0d6efd; /* primary */
+    }
+
+    .header-issues {
+      background-color: #0dcaf0; /* info */
+      color: #ffffff;
+    }
+
+    .header-ratio {
+      background-color: #ffc107; /* warning */
+      color: #212529;
+    }
+
+    .header-precedents {
+      background-color: #198754; /* success */
+    }
+
+    .result-card-body {
+      padding: 0.9rem 1rem 1rem 1rem;
+      font-size: 0.9rem;
+      color: #212529;
+    }
+
+    .result-card-body p {
+      margin-top: 0;
+      margin-bottom: 0.4rem;
+    }
+
+    .result-card-body ul {
+      margin: 0;
+      padding-left: 1.2rem;
+    }
+
+    .result-card-body li {
+      margin-bottom: 0.3rem;
+    }
+
+    /* Precedents styling (like your .precedent-item) */
+    .precedent-item {
+      padding: 0.5rem;
+      border-radius: 5px;
+      background-color: #f8f9fa;
+      margin-bottom: 0.4rem;
+    }
+
+    .precedent-case {
+      font-weight: 600;
+      color: #212529;
+      margin-bottom: 0.15rem;
+    }
+
+    .precedent-citation {
+      font-size: 0.8rem;
+      color: #343a40;
+    }
+
+    .precedent-relevance {
+      font-size: 0.8rem;
+      color: #0d6efd;
+      margin-top: 0.15rem;
+    }
+
+    /* Footer / generated info */
+    .footer {
+      margin-top: 1.5rem;
+      padding-top: 0.75rem;
+      border-top: 1px solid #dee2e6;
+      font-size: 0.75rem;
+      color: #6c757d;
+      text-align: center;
+    }
+
+    /* Simple “row g-4” spacing approximation */
+    .mt-4 {
+      margin-top: 1.5rem;
+    }
+
+    /* Make sure layout still looks decent if shrunk */
+    @media print {
+      body {
+        background-color: #ffffff;
+      }
+      .case-extractor {
+        max-width: 100%;
+        padding: 0;
+      }
+    }
+  </style>
 </head>
 <body>
-  <h1>Case Extraction Complete</h1>
-  <p><strong>{{ filename }}</strong> • {{ char_count }} characters</p>
+  <div class="case-extractor">
+    <div class="results-card card">
+      <div class="card-body">
+        <!-- Header -->
+        <div class="results-header">
+          <div class="icon-wrapper">📄</div>
+          <h2>Case Extraction Complete</h2>
+          <p class="lead">Key legal elements extracted from your document</p>
+          <p class="meta">
+            Analyzed:
+            <strong>{{ filename }}</strong>
+            {% if char_count %}
+              • {{ char_count }} characters
+            {% endif %}
+          </p>
+        </div>
 
-  <h2>Facts</h2>
-  <p>{{ facts }}</p>
+        <!-- Results Grid -->
+        <div class="results-grid">
+          <!-- Facts -->
+          <div class="results-grid-item">
+            <div class="result-card">
+              <div class="result-card-header header-facts">
+                Facts
+              </div>
+              <div class="result-card-body">
+                <p>{{ facts }}</p>
+              </div>
+            </div>
+          </div>
 
-  <h2>Legal Issues</h2>
-  <ul>
-    {% for issue in issues %}
-      <li>{{ issue }}</li>
-    {% endfor %}
-  </ul>
+          <!-- Legal Issues -->
+          <div class="results-grid-item">
+            <div class="result-card">
+              <div class="result-card-header header-issues">
+                Legal Issues
+              </div>
+              <div class="result-card-body">
+                {% if issues and issues|length > 0 %}
+                  <ul>
+                    {% for issue in issues %}
+                      <li>{{ issue }}</li>
+                    {% endfor %}
+                  </ul>
+                {% else %}
+                  <p>No legal issues identified.</p>
+                {% endif %}
+              </div>
+            </div>
+          </div>
 
-  <h2>Ratio Decidendi</h2>
-  <p>{{ ratio }}</p>
+          <!-- Ratio Decidendi -->
+          <div class="results-grid-item">
+            <div class="result-card">
+              <div class="result-card-header header-ratio">
+                Ratio Decidendi
+              </div>
+              <div class="result-card-body">
+                <p>{{ ratio }}</p>
+              </div>
+            </div>
+          </div>
 
-  <h2>Precedents Cited</h2>
-  {% for p in precedents %}
-    <p>
-      <strong>{{ p.caseName }}</strong><br>
-      {{ p.citation }}<br>
-      <em>{{ p.relevance }}</em>
-    </p>
-  {% endfor %}
+          <!-- Precedents Cited -->
+          <div class="results-grid-item">
+            <div class="result-card">
+              <div class="result-card-header header-precedents">
+                Precedents Cited
+              </div>
+              <div class="result-card-body">
+                {% if precedents and precedents|length > 0 %}
+                  {% for p in precedents %}
+                    <div class="precedent-item">
+                      <div class="precedent-case">{{ p.caseName }}</div>
+                      <div class="precedent-citation">{{ p.citation }}</div>
+                      {% if p.relevance %}
+                        <div class="precedent-relevance">{{ p.relevance }}</div>
+                      {% endif %}
+                    </div>
+                  {% endfor %}
+                {% else %}
+                  <p>No precedents were cited in this summary.</p>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="footer">
+          Generated by My Legal Assistant • {{ generated_at }}
+        </div>
+      </div>
+    </div>
+  </div>
 </body>
 </html>
+
