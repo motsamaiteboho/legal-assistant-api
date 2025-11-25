@@ -132,7 +132,9 @@ class CaseExtractorService:
                 parsed_result = json.loads(content)
                 # Validate the parsed result has required fields
                 if self._validate_extraction_result(parsed_result):
-                    return parsed_result
+                    # ✅ Ensure advanced fields are present
+                    enriched = self._ensure_advanced_fields(parsed_result, text)
+                    return enriched
                 else:
                     print("⚠️ JSON validation failed, using fallback")
                     return self._create_structured_response_from_text(content)
@@ -144,6 +146,7 @@ class CaseExtractorService:
         except Exception as e:
             print(f"❌ Analysis failed: {e}")
             return self._create_fallback_response()
+
     
     def _validate_extraction_result(self, result):
         """Validate that the extraction result has the expected structure"""
@@ -161,19 +164,24 @@ class CaseExtractorService:
     def _create_structured_response_from_text(self, text):
         """Create structured response when JSON parsing fails with better parsing"""
         print("🔄 Using enhanced text parsing fallback")
-        
-        # Enhanced parsing with multiple strategies
+    
         facts = self._extract_enhanced_section(text, ['FACTS:', 'FACTS', 'Factual Background:', 'The facts'])
         issues = self._extract_enhanced_list(text, ['LEGAL_ISSUES:', 'ISSUES:', 'Legal Issues:', 'The issues'])
         ratio = self._extract_enhanced_section(text, ['RATIO_DECIDENDI:', 'RATIO:', 'Ratio:', 'The court held'])
         precedents = self._extract_enhanced_precedents(text)
-        
+
+        outcome = self._extract_outcome_from_raw_text(text)
+        issue_evidence = self._extract_issue_evidence_from_raw_text(issues, text)
+
         return {
             "facts": facts if facts and "Unable to extract" not in facts else self._extract_facts_from_raw_text(text),
             "issues": issues if issues and "Unable to extract" not in issues[0] else self._extract_issues_from_raw_text(text),
             "ratio": ratio if ratio and "Unable to extract" not in ratio else self._extract_ratio_from_raw_text(text),
-            "precedents": precedents if precedents and precedents[0].get('caseName') != 'No precedents extracted' else self._extract_precedents_from_raw_text(text)
+            "precedents": precedents if precedents and precedents[0].get('caseName') != 'No precedents extracted' else self._extract_precedents_from_raw_text(text),
+            "outcome_analysis": outcome,
+            "issue_evidence": issue_evidence,
         }
+
     
     def _extract_enhanced_section(self, text, markers):
         """Extract section using multiple possible markers"""
@@ -311,6 +319,92 @@ class CaseExtractorService:
         
         lines = [line.strip() for line in section_text.split('\n') if line.strip()]
         return [line for line in lines if line and not line.startswith('{') and not line.startswith('[')]
+    
+    def _extract_outcome_from_raw_text(self, text: str) -> str:
+        """Very lightweight extraction of the outcome/holding."""
+        lowered = text.lower()
+        if 'appeal is dismissed' in lowered or 'appeal is hereby dismissed' in lowered:
+            return "The court dismissed the appeal."
+        if 'appeal is upheld' in lowered or 'appeal succeeds' in lowered:
+            return "The court upheld the appeal."
+        if 'application is dismissed' in lowered:
+            return "The court dismissed the application."
+        if 'application is granted' in lowered:
+            return "The court granted the application."
+        # fallback: use first 2 ratio sentences as an outcome-style explanation
+        ratio = self._extract_ratio_from_raw_text(text)
+        if ratio and "could not be automatically" not in ratio:
+            return ratio
+        return "The precise outcome of the matter could not be automatically extracted."
+
+    def _extract_issue_evidence_from_raw_text(self, issues, text: str):
+        """Link each issue to a few supporting sentences from the judgment."""
+        if not issues or not text:
+            return []
+
+        sentences = [s.strip() for s in re.split(r'(?<=[\.\?!])\s+', text) if s.strip()]
+        evidence_list = []
+
+        for issue in issues:
+            if not issue or "unable to extract" in issue.lower():
+                evidence_list.append({"issue": issue, "supporting_paragraphs": []})
+                continue
+
+            key_words = [w.lower() for w in re.findall(r'\w+', issue) if len(w) > 4]
+            supporting = []
+            for sent in sentences:
+                if any(k in sent.lower() for k in key_words):
+                    supporting.append(sent)
+                if len(supporting) >= 3:
+                    break
+
+            evidence_list.append({
+                "issue": issue,
+                "supporting_paragraphs": supporting
+            })
+
+        return evidence_list
+    
+    def _ensure_advanced_fields(self, result: dict, text: str) -> dict:
+        """
+        Ensure the parsed LLM result also contains the advanced fields:
+        - outcome_analysis
+        - issue_evidence
+        without breaking old responses.
+        """
+        # Make a shallow copy so we don't mutate the original unintentionally
+        enriched = dict(result)
+
+        # outcome_analysis: if missing or empty, derive from raw text
+        if not enriched.get("outcome_analysis"):
+            enriched["outcome_analysis"] = self._extract_outcome_from_raw_text(text)
+
+        # issue_evidence: if missing or not a list, derive from raw text + issues
+        issues = enriched.get("issues") or []
+        issue_evidence = enriched.get("issue_evidence")
+        if not isinstance(issue_evidence, list):
+            enriched["issue_evidence"] = self._extract_issue_evidence_from_raw_text(issues, text)
+        else:
+            # normalise each entry
+            normalised = []
+            for entry in issue_evidence:
+                if not isinstance(entry, dict):
+                    continue
+                issue = entry.get("issue", "")
+                supporting = entry.get("supporting_paragraphs") or []
+                if not isinstance(supporting, list):
+                    supporting = [str(supporting)]
+                normalised.append({
+                    "issue": issue,
+                    "supporting_paragraphs": supporting,
+                })
+            # if LLM gave an empty list, we can still populate via fallback
+            if not normalised and issues:
+                normalised = self._extract_issue_evidence_from_raw_text(issues, text)
+            enriched["issue_evidence"] = normalised
+
+        return enriched
+
 
 # Global instance
 case_extractor_service = CaseExtractorService()

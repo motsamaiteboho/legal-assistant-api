@@ -54,10 +54,10 @@ env = Environment(
 )
 
 # If wkhtmltopdf is on PATH, this is enough:
-pdfkit_config = pdfkit.configuration(wkhtmltopdf="/app/bin/wkhtmltopdf")
-#pdfkit_config = pdfkit.configuration(
- #   wkhtmltopdf=r"C:\Program Files\wkhtmltopdf\bin\wkhtmltopdf.exe"
-#)
+#pdfkit_config = pdfkit.configuration(wkhtmltopdf="/app/bin/wkhtmltopdf")
+pdfkit_config = pdfkit.configuration(
+    wkhtmltopdf=r"C:\Program Files\wkhtmltopdf\bin\wkhtmltopdf.exe"
+)
 
 
 # Root endpoint
@@ -236,7 +236,9 @@ async def export_pdf(payload: CaseExtractionResponse):
     filename = metadata.get("filename", "case_summary")
     char_count = metadata.get("text_length", 0)
 
+    # --- Load Jinja template ---
     template = env.get_template("case_summary.html")
+
     html_str = template.render(
         filename=filename,
         char_count=char_count,
@@ -244,10 +246,28 @@ async def export_pdf(payload: CaseExtractionResponse):
         issues=payload.result.issues,
         ratio=payload.result.ratio,
         precedents=payload.result.precedents,
+        outcome_analysis=getattr(payload.result, "outcome_analysis", None),
+        issue_evidence=getattr(payload.result, "issue_evidence", None),
         generated_at=datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC"),
     )
 
-    pdf_bytes = pdfkit.from_string(html_str, False, configuration=pdfkit_config)
+    # --- Load CSS (must be actual file path) ---
+    BASE_DIR = Path(__file__).resolve().parent
+    CSS_PATH = BASE_DIR / "templates" / "case_summary.css"
+
+    # wkhtmltopdf requires this for file-based CSS
+    options = {
+        "enable-local-file-access": ""
+    }
+
+    # --- Generate the PDF ---
+    pdf_bytes = pdfkit.from_string(
+        html_str,
+        False,
+        configuration=pdfkit_config,
+        options=options,
+        css=str(CSS_PATH)  # <--- FIXES YOUR ERROR
+    )
 
     return Response(
         content=pdf_bytes,
