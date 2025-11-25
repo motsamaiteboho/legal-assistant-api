@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <title>Case Extraction Summary</title>
+</head>
+<body>
+  <h1>Case Extraction Complete</h1>
+  <p><strong>{{ filename }}</strong> • {{ char_count }} characters</p>
+
+  <h2>Facts</h2>
+  <p>{{ facts }}</p>
+
+  <h2>Legal Issues</h2>
+  <ul>
+    {% for issue in issues %}
+      <li>{{ issue }}</li>
+    {% endfor %}
+  </ul>
+
+  <h2>Ratio Decidendi</h2>
+  <p>{{ ratio }}</p>
+
+  <h2>Precedents Cited</h2>
+  {% for p in precedents %}
+    <p>
+      <strong>{{ p.caseName }}</strong><br>
+      {{ p.citation }}<br>
+      <em>{{ p.relevance }}</em>
+    </p>
+  {% endfor %}
+</body>
+</html>
