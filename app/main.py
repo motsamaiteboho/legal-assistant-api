@@ -244,6 +244,8 @@ async def export_pdf(payload: CaseExtractionResponse):
         issues=payload.result.issues,
         ratio=payload.result.ratio,
         precedents=payload.result.precedents,
+        outcome_analysis=getattr(payload.result, "outcome_analysis", None),
+        issue_evidence=getattr(payload.result, "issue_evidence", None),
         generated_at=datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC"),
     )
 
