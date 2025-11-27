@@ -3,7 +3,8 @@ from pathlib import Path
 from typing import Optional
 import requests  # Add this import
 import io        # Add this import
-from app.models.case_models import PdfUrlRequest
+from app.models.case_models import AdvancedComparisonExportRequest, AdvancedComparisonRequest, AdvancedComparisonResponse, PdfUrlRequest
+from app.services.case_comparison_service import case_comparison_service
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
@@ -54,10 +55,10 @@ env = Environment(
 )
 
 # If wkhtmltopdf is on PATH, this is enough:
-pdfkit_config = pdfkit.configuration(wkhtmltopdf="/app/bin/wkhtmltopdf")
-# pdfkit_config = pdfkit.configuration(
-#     wkhtmltopdf=r"C:\Program Files\wkhtmltopdf\bin\wkhtmltopdf.exe"
-# )
+#pdfkit_config = pdfkit.configuration(wkhtmltopdf="/app/bin/wkhtmltopdf")
+pdfkit_config = pdfkit.configuration(
+     wkhtmltopdf=r"C:\Program Files\wkhtmltopdf\bin\wkhtmltopdf.exe"
+ )
 
 
 # Root endpoint
@@ -258,6 +259,45 @@ async def export_pdf(payload: CaseExtractionResponse):
             "Content-Disposition": f'attachment; filename="{filename}.pdf"'
         },
     )
+
+@app.post("/export-advanced-comparison-pdf")
+async def export_advanced_comparison_pdf(payload: AdvancedComparisonExportRequest):
+    """
+    Export the advanced comparison HTML as a nicely formatted PDF.
+    """
+    if not payload.comparison_html.strip():
+        raise HTTPException(status_code=400, detail="No comparison content to export")
+
+    filename = (payload.filename or "advanced_comparison").replace(" ", "_")
+    title = payload.title or "Advanced Comparison Report"
+
+    template = env.get_template("advanced_comparison.html")
+    html_str = template.render(
+      title=title,
+      comparison_html=payload.comparison_html,
+      generated_at=datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC"),
+    )
+
+    pdf_bytes = pdfkit.from_string(html_str, False, configuration=pdfkit_config)
+
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}.pdf"'
+        },
+    )
+
+@app.post("/advanced-comparison", response_model=AdvancedComparisonResponse)
+async def advanced_comparison(req: AdvancedComparisonRequest):
+    """
+    Perform a high-level legal comparison of multiple extracted case summaries.
+    """
+    if not req.cases or len(req.cases) < 2:
+        raise HTTPException(status_code=400, detail="At least two cases are required.")
+
+    comparison = case_comparison_service.generate_advanced_comparison(req.cases)
+    return AdvancedComparisonResponse(comparison=comparison)
 
 # Health check endpoint
 @app.get("/health", response_model=HealthResponse)

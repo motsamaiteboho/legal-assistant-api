@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import List, Optional
+from typing import Any, List, Optional
 
 class Precedent(BaseModel):
     caseName: str
@@ -27,6 +27,26 @@ class CaseExtractionResponse(BaseModel):
     result: Optional[CaseExtractionResult] = None
     error: Optional[str] = None
     metadata: Optional[dict] = None
+
+class AdvancedCaseInput(BaseModel):
+    id: int
+    fileName: str
+    facts: str
+    issues: List[str] = []
+    ratio: str
+    precedents: List[Any] = []
+    outcome: Optional[str] = None
+
+class AdvancedComparisonRequest(BaseModel):
+    cases: List[AdvancedCaseInput]
+
+class AdvancedComparisonResponse(BaseModel):
+    comparison: str
+
+class AdvancedComparisonExportRequest(BaseModel):
+    comparison_html: str   # the HTML you already show with [innerHTML]
+    filename: Optional[str] = None
+    title: Optional[str] = "Advanced Comparison Report"
 
 
 class PdfUrlRequest(BaseModel):

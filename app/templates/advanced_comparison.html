@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>{{ title or "Advanced Comparison Report" }}</title>
+    <style>
+      body {
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+          sans-serif;
+        font-size: 12px;
+        line-height: 1.5;
+        color: #1f2933;
+        margin: 24px;
+      }
+
+      h1,
+      h2,
+      h3,
+      h4 {
+        text-align: center;
+        margin-top: 1.5rem;
+        margin-bottom: 0.75rem;
+      }
+
+      .meta {
+        font-size: 10px;
+        color: #6b7280;
+        margin-bottom: 1rem;
+        text-align: right;
+      }
+
+      .content {
+        margin-top: 1rem;
+      }
+
+      .content p,
+      .content li {
+        text-align: left;
+      }
+
+      .content ul,
+      .content ol {
+        padding-left: 1.4rem;
+      }
+
+      hr {
+        border: none;
+        border-top: 1px solid #d1d5db;
+        margin: 1rem 0;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>{{ title or "Advanced Comparison Report" }}</h1>
+
+    <div class="meta">
+      Generated at: {{ generated_at }}
+    </div>
+
+    <hr />
+
+    <div class="content">
+      {{ comparison_html | safe }}
+    </div>
+  </body>
+</html>
