@@ -115,7 +115,7 @@ class TranscriptService:
             # Try to decode as text
             try:
                 return file_content.decode('utf-8')
-            except:
+            except Exception:
                 raise ValueError(f"Unsupported file format: {filename}")
     
     def allowed_file(self, filename: str) -> bool:
