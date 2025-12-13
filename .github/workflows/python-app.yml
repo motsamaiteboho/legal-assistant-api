@@ -1,25 +1,31 @@
-name: Python application
+name: CI/CD (FastAPI → Heroku)
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
   pull_request:
-    branches: [ "main" ]
+    branches: ["main"]
 
 permissions:
   contents: read
 
+concurrency:
+  group: heroku-deploy-main
+  cancel-in-progress: true
+
 jobs:
-  build:
+  ci:
+    name: Build + Lint + Smoke
     runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Python 3.12
+      - name: Set up Python 3.12 (with pip cache)
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+          cache: "pip"
 
       - name: Install dependencies
         run: |
@@ -27,15 +33,25 @@ jobs:
           pip install flake8
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
 
-      - name: Lint with flake8
+      - name: Lint (strict)
         run: |
           flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
-          flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+          flake8 . --count --max-complexity=10 --max-line-length=127 --statistics
+
+      - name: Smoke check (imports)
+        run: |
+          python -c "import app.main"
 
   deploy:
-    needs: build
+    name: Deploy to Heroku + Verify
+    needs: ci
     runs-on: ubuntu-latest
+
+    # Deploy ONLY on pushes to main (never on PR)
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    # GitHub Environment for approval gates
+    environment: production
 
     steps:
       - uses: actions/checkout@v4
@@ -45,10 +61,44 @@ jobs:
           curl https://cli-assets.heroku.com/install.sh | sh
           heroku --version
 
-      - name: Deploy to Heroku
-        uses: akhileshns/heroku-deploy@v3.13.15
-        with:
-          heroku_api_key: ${{ secrets.HEROKU_API_KEY }}
-          heroku_app_name: ${{ secrets.HEROKU_APP_NAME }}
-          heroku_email: ${{ secrets.HEROKU_EMAIL }}
-          dontautocreate: true
+      - name: Authenticate to Heroku (netrc)
+        env:
+          HEROKU_API_KEY: ${{ secrets.HEROKU_API_KEY }}
+          HEROKU_EMAIL: ${{ secrets.HEROKU_EMAIL }}
+        run: |
+          cat > ~/.netrc <<EOF
+          machine api.heroku.com
+            login ${HEROKU_EMAIL}
+            password ${HEROKU_API_KEY}
+          machine git.heroku.com
+            login ${HEROKU_EMAIL}
+            password ${HEROKU_API_KEY}
+          EOF
+          chmod 600 ~/.netrc
+          heroku auth:whoami || true
+
+      - name: Push to Heroku (buildpack deploy)
+        env:
+          HEROKU_APP_NAME: ${{ secrets.HEROKU_APP_NAME }}
+        run: |
+          heroku git:remote -a "$HEROKU_APP_NAME"
+          git push heroku HEAD:main --force
+
+      - name: Post-deploy health check
+        env:
+          HEROKU_APP_NAME: ${{ secrets.HEROKU_APP_NAME }}
+        run: |
+          URL="https://${HEROKU_APP_NAME}.herokuapp.com/health"
+          echo "Checking $URL"
+          # retry a few times to allow dyno boot
+          for i in 1 2 3 4 5; do
+            if curl -fsS "$URL" > /dev/null; then
+              echo "✅ Health check passed"
+              exit 0
+            fi
+            echo "Waiting for app to boot... ($i/5)"
+            sleep 5
+          done
+          echo "❌ Health check failed"
+          exit 1
+
