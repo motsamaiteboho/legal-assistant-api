@@ -57,10 +57,10 @@ env = Environment(
 )
 
 # If wkhtmltopdf is on PATH, this is enough:
-#pdfkit_config = pdfkit.configuration(wkhtmltopdf="/app/bin/wkhtmltopdf")
-pdfkit_config = pdfkit.configuration(
-      wkhtmltopdf=r"C:\Program Files\wkhtmltopdf\bin\wkhtmltopdf.exe"
-  )
+pdfkit_config = pdfkit.configuration(wkhtmltopdf="/app/bin/wkhtmltopdf")
+# pdfkit_config = pdfkit.configuration(
+#       wkhtmltopdf=r"C:\Program Files\wkhtmltopdf\bin\wkhtmltopdf.exe"
+#   )
 
 
 # Root endpoint
