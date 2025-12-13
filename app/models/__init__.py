@@ -12,3 +12,15 @@ __all__ = [
     "CaseExtractionResponse",
     "HealthResponse"
 ]
+
+# Export transcript models
+from .transcript_models import (
+    TranscriptSummary,
+    TranscriptMetadata,
+    TranscriptRequest,
+    TranscriptResponse,
+    TranscriptUrlRequest,
+    TranscriptUploadRequest,
+    AnalysisOptions,
+    FileType
+)

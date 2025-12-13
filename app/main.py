@@ -4,6 +4,8 @@ from typing import Optional
 import requests  # Add this import
 import io        # Add this import
 from app.models.case_models import AdvancedComparisonExportRequest, AdvancedComparisonRequest, AdvancedComparisonResponse, PdfUrlRequest
+from app.models.transcript_models import TranscriptRequest, TranscriptResponse, TranscriptUrlRequest
+from app.services import transcript_service
 from app.services.case_comparison_service import case_comparison_service
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -55,23 +57,26 @@ env = Environment(
 )
 
 # If wkhtmltopdf is on PATH, this is enough:
-pdfkit_config = pdfkit.configuration(wkhtmltopdf="/app/bin/wkhtmltopdf")
-# pdfkit_config = pdfkit.configuration(
-#      wkhtmltopdf=r"C:\Program Files\wkhtmltopdf\bin\wkhtmltopdf.exe"
-#  )
+#pdfkit_config = pdfkit.configuration(wkhtmltopdf="/app/bin/wkhtmltopdf")
+pdfkit_config = pdfkit.configuration(
+      wkhtmltopdf=r"C:\Program Files\wkhtmltopdf\bin\wkhtmltopdf.exe"
+  )
 
 
 # Root endpoint
 @app.get("/")
 async def root():
-    return {
+     return {
         "message": "Legal Assistant API",
-        "version": "1.0.0",
+        "version": "2.0.0",
         "endpoints": {
             "docs": "/docs",
             "chat": "/ask (POST)",
             "case_extractor_upload": "/extract-case/upload (POST)",
             "case_extractor_url": "/extract-case/url (POST)",
+            "transcript_analyze": "/transcripts/analyze (POST)",
+            "transcript_upload": "/transcripts/upload (POST)",
+            "transcript_url": "/transcripts/url (POST)",
             "health": "/health (GET)"
         }
     }
@@ -311,6 +316,193 @@ async def health_check():
         }
     }
 
+# ============================================================================
+# DEPOSITION TRANSCRIPT ENDPOINTS
+# ============================================================================
+
+@app.post("/transcripts/analyze", response_model=TranscriptResponse)
+async def analyze_transcript(request: TranscriptRequest):
+    """
+    Analyze deposition transcript text
+    
+    Submit transcript text and receive AI-generated analysis including:
+    - Executive summary
+    - Key topics
+    - Critical admissions
+    - Contradictions
+    - Evidence mentioned
+    - Follow-up areas
+    """
+    if not request.transcript.strip():
+        raise HTTPException(status_code=400, detail="Please provide transcript text.")
+    
+    try:
+        result = transcript_service.analyze_transcript(
+            request.transcript,
+            request.context
+        )
+        return result
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error analyzing transcript: {str(e)}"
+        )
+
+@app.post("/transcripts/upload", response_model=TranscriptResponse)
+async def upload_and_analyze_transcript(
+    file: UploadFile = File(...),
+    context: Optional[str] = None
+):
+    """
+    Upload a transcript file and analyze it
+    
+    Supports PDF, TXT, DOC, and DOCX files.
+    """
+    try:
+        # Validate file type
+        if not transcript_service.allowed_file(file.filename):
+            raise HTTPException(
+                status_code=400,
+                detail="File must be PDF, TXT, DOC, or DOCX format"
+            )
+        
+        # Validate file size
+        file.file.seek(0, 2)  # Seek to end
+        file_size = file.file.tell()
+        file.file.seek(0)  # Reset to beginning
+        
+        if file_size > 10 * 1024 * 1024:  # 10MB limit
+            raise HTTPException(
+                status_code=400,
+                detail="File size must be less than 10MB"
+            )
+        
+        # Read file content
+        content = await file.read()
+        
+        # Extract text from file
+        text = transcript_service.extract_text_from_file(content, file.filename)
+        
+        # Analyze transcript
+        result = transcript_service.analyze_transcript(text, context)
+        
+        # Update metadata with filename
+        result.metadata.filename = file.filename
+        result.metadata.upload_date = datetime.now()
+        
+        return result
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error processing transcript file: {str(e)}"
+        )
+
+@app.post("/transcripts/url", response_model=TranscriptResponse)
+async def analyze_transcript_from_url(request: TranscriptUrlRequest):
+    """
+    Analyze transcript from URL
+    
+    Download transcript from URL and analyze it.
+    """
+    transcript_url = request.transcript_url
+    
+    try:
+        # Ensure URL has a scheme
+        if not transcript_url.startswith(('http://', 'https://')):
+            transcript_url = f'https://{transcript_url}'
+        
+        # Download the file
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': '*/*'
+        }
+        
+        session = requests.Session()
+        session.headers.update(headers)
+        
+        response = session.get(transcript_url, timeout=30, verify=False, allow_redirects=True)
+        response.raise_for_status()
+        
+        # Check file size
+        content_length = response.headers.get('content-length')
+        if content_length and int(content_length) > 10 * 1024 * 1024:
+            raise HTTPException(status_code=400, detail="File size must be less than 10MB")
+        
+        # Extract filename from URL or headers
+        filename = "transcript"
+        if 'content-disposition' in response.headers:
+            # Try to extract filename from content-disposition
+            import re
+            match = re.search(r'filename="?([^"]+)"?', response.headers['content-disposition'])
+            if match:
+                filename = match.group(1)
+        else:
+            # Extract from URL
+            filename = transcript_url.split('/')[-1].split('?')[0]
+        
+        # Extract text from file content
+        text = transcript_service.extract_text_from_file(response.content, filename)
+        
+        # Analyze transcript
+        result = transcript_service.analyze_transcript(text, request.context)
+        
+        # Update metadata
+        result.metadata.filename = filename
+        result.metadata.upload_date = datetime.now()
+        result.metadata.source_url = transcript_url
+        
+        return result
+        
+    except requests.exceptions.RequestException as e:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Failed to download transcript from URL: {str(e)}"
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error processing transcript: {str(e)}"
+        )
+
+@app.post("/transcripts/export-pdf")
+async def export_transcript_analysis(payload: TranscriptResponse):
+    """
+    Export transcript analysis as PDF
+    """
+    if not payload.success or payload.summary is None:
+        raise HTTPException(status_code=400, detail="No valid analysis result to export")
+    
+    try:
+        metadata = payload.metadata or {}
+        filename = metadata.get("filename", "transcript_analysis")
+        
+        template = env.get_template("transcript_summary.html")
+        html_str = template.render(
+            filename=filename,
+            witness=metadata.get("witness", "Unknown"),
+            upload_date=metadata.get("upload_date", datetime.now()).strftime("%Y-%m-%d %H:%M"),
+            summary=payload.summary,
+            generated_at=datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC"),
+        )
+        
+        pdf_bytes = pdfkit.from_string(html_str, False, configuration=pdfkit_config)
+        
+        return Response(
+            content=pdf_bytes,
+            media_type="application/pdf",
+            headers={
+                "Content-Disposition": f'attachment; filename="{filename}_analysis.pdf"'
+            },
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error generating PDF: {str(e)}"
+        )
+
 if __name__ == "__main__":
     # Validate configuration
     Config.validate_config()
@@ -323,6 +515,10 @@ if __name__ == "__main__":
     print("   💬 POST /ask                       - Chat with legal database")
     print("   📄 POST /extract-case/upload       - Analyze uploaded PDF")
     print("   🌐 POST /extract-case/url          - Analyze PDF from URL")
+    print("   🎤 POST /transcripts/analyze       - Analyze transcript text")
+    print("   📁 POST /transcripts/upload        - Upload & analyze transcript file")
+    print("   🌐 POST /transcripts/url           - Analyze transcript from URL")
+    print("   📊 POST /transcripts/export-pdf    - Export transcript analysis as PDF")
     print("   ❤️  GET  /health                   - Service health check")
     print("   📖 GET  /docs                      - Swagger UI Documentation")
     print("   📘 GET  /redoc                     - ReDoc Documentation")
