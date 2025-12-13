@@ -10,17 +10,13 @@ __all__ = [
     "Precedent",
     "CaseExtractionResult",
     "CaseExtractionResponse",
-    "HealthResponse"
+    "HealthResponse",
+    "TranscriptSummary",
+    "TranscriptMetadata",
+    "TranscriptRequest",
+    "TranscriptResponse",
+    "TranscriptUrlRequest",
+    "TranscriptUploadRequest",
+    "AnalysisOptions",
+    "FileType"
 ]
-
-# Export transcript models
-from .transcript_models import (
-    TranscriptSummary,
-    TranscriptMetadata,
-    TranscriptRequest,
-    TranscriptResponse,
-    TranscriptUrlRequest,
-    TranscriptUploadRequest,
-    AnalysisOptions,
-    FileType
-)

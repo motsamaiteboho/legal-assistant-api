@@ -1,6 +1,5 @@
 from langchain_openai import OpenAIEmbeddings
 from langchain_community.vectorstores import FAISS
-from langchain.retrievers.multi_query import MultiQueryRetriever
 from app.config.config import Config
 
 class VectorStoreService:

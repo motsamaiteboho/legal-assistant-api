@@ -2,7 +2,7 @@ import os
 import tempfile
 import json
 import re
-from typing import Dict, List, Optional, Any
+from typing import Dict
 from datetime import datetime
 import PyPDF2
 import docx
