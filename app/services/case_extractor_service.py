@@ -308,7 +308,7 @@ class CaseExtractorService:
                 return text[start_idx:end_idx].strip()
             else:
                 return text[start_idx:].strip()
-        except:
+        except Exception:
             return "Unable to extract this section from the document."
     
     def _extract_list_section(self, text, start_marker, end_marker=None):
