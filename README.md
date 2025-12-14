@@ -11,7 +11,7 @@ A FastAPI backend for South African legal research and case analysis, providing 
 - 📊 **Case Analysis** - Extract legal elements from PDF judgments
 - 🔗 **SAFLII Integration** - Access to Southern African Legal Information Institute
 - 📚 **Source Management** - Legal source retrieval and citation
-- 🚀 **FastAPI** - Modern Python API with automatic docs
+- 🚀 **FastAPI** - Modern Python API with automatic docs 
 
 ## Tech Stack
 
