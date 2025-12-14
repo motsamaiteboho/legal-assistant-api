@@ -44,7 +44,7 @@ jobs:
       - name: Post-deploy verification
         env:
           HEROKU_APP_NAME: ${{ secrets.HEROKU_APP_NAME }}
-        run: |s
+        run: |
           BASE="https://${HEROKU_APP_NAME}-5209c0ad9f9e.herokuapp.com"
           echo "Checking ${BASE}"
 
