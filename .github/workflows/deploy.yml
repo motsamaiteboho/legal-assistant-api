@@ -60,8 +60,8 @@ jobs:
             return 1
           }
 
-          for i in 1 2 3 4 5 6 7 8; do
-            echo "Attempt $i/8"
+          for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do
+            echo "Attempt $i/15"
             if check "/" && check "/docs"; then
               check "/health" || true
               echo "✅ Post-deploy checks passed"
