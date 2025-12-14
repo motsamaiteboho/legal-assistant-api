@@ -72,39 +72,38 @@ jobs:
           git push heroku HEAD:main --force
 
       - name: Post-deploy verification
-  env:
-    HEROKU_APP_NAME: ${{ secrets.HEROKU_APP_NAME }}
-  run: |
-    BASE="https://${HEROKU_APP_NAME}.herokuapp.com"
-    echo "Checking ${BASE}"
+        env:
+          HEROKU_APP_NAME: ${{ secrets.HEROKU_APP_NAME }}
+        run: |
+          BASE="https://${HEROKU_APP_NAME}.herokuapp.com"
+          echo "Checking ${BASE}"
 
-    check () {
-      local path="$1"
-      local url="${BASE}${path}"
-      local code
-      code=$(curl -s -o /dev/null -w "%{http_code}" "$url" || echo "000")
-      echo "${path} -> ${code}"
-      if [ "$code" = "200" ] || [ "$code" = "307" ] || [ "$code" = "308" ]; then
-        return 0
-      fi
-      return 1
-    }
+          check () {
+            local path="$1"
+            local url="${BASE}${path}"
+            local code
+            code=$(curl -s -o /dev/null -w "%{http_code}" "$url" || echo "000")
+            echo "${path} -> ${code}"
+            if [ "$code" = "200" ] || [ "$code" = "307" ] || [ "$code" = "308" ]; then
+              return 0
+            fi
+            return 1
+          }
 
-    # retry a few times to allow dyno boot
-    for i in 1 2 3 4 5 6 7 8; do
-      echo "Attempt $i/8"
-      if check "/" && check "/docs"; then
-        # /health is optional (won't fail deploy if missing)
-        check "/health" || true
-        echo "✅ Post-deploy checks passed"
-        exit 0
-      fi
-      echo "Waiting for app to boot..."
-      sleep 7
-    done
+          for i in 1 2 3 4 5 6 7 8; do
+            echo "Attempt $i/8"
+            if check "/" && check "/docs"; then
+              check "/health" || true
+              echo "✅ Post-deploy checks passed"
+              exit 0
+            fi
+            echo "Waiting for app to boot..."
+            sleep 7
+          done
 
-    echo "❌ Post-deploy checks failed"
-    exit 1
+          echo "❌ Post-deploy checks failed"
+          exit 1
+
 
 
 
