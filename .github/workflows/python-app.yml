@@ -51,7 +51,10 @@ jobs:
     environment: production
 
     steps:
+      # ✅ IMPORTANT: full clone so Heroku accepts git pushes
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Install Heroku CLI
         run: |
