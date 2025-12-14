@@ -1,10 +1,12 @@
 name: CD (Deploy to Heroku)
 
 on:
-  workflow_run:
-    workflows: ["CI (Lint + Smoke)"]
-    types:
-      - completed
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Branch, tag, or SHA to deploy (default: main)"
+        required: false
+        default: "main"
 
 permissions:
   contents: read
@@ -15,19 +17,14 @@ concurrency:
 
 jobs:
   deploy:
-    # Only deploy if CI succeeded AND it was for main branch
-    if: >
-      github.event.workflow_run.conclusion == 'success' &&
-      github.event.workflow_run.head_branch == 'main'
-
     runs-on: ubuntu-latest
     environment: production
 
     steps:
-      # Checkout the exact commit that CI tested
-      - uses: actions/checkout@v4
+      - name: Checkout selected ref
+        uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.workflow_run.head_sha }}
+          ref: ${{ inputs.ref }}
           fetch-depth: 0
 
       - name: Install Heroku CLI
@@ -63,8 +60,8 @@ jobs:
             return 1
           }
 
-          for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do
-            echo "Attempt $i/15"
+          for i in 1 2 3 4 5 6 7 8; do
+            echo "Attempt $i/8"
             if check "/" && check "/docs"; then
               check "/health" || true
               echo "✅ Post-deploy checks passed"
