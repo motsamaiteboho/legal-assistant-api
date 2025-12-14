@@ -36,54 +36,52 @@ jobs:
       - name: Lint with flake8
         run: flake8 .
 
-      - name: Smoke check (imports)
+      - name: Smoke check (syntax compile)
         run: python -m py_compile app/main.py
 
-deploy:
-  name: Deploy to Heroku + Verify
-  needs: ci
-  runs-on: ubuntu-latest
+  deploy:
+    name: Deploy to Heroku + Verify
+    needs: ci
+    runs-on: ubuntu-latest
 
-  # Deploy ONLY on pushes to main (never on PR)
-  if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    # Deploy ONLY on pushes to main (never on PR)
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
 
-  # GitHub Environment for approval gates
-  environment: production
+    # GitHub Environment for approval gates
+    environment: production
 
-  steps:
-    - uses: actions/checkout@v4
+    steps:
+      - uses: actions/checkout@v4
 
-    # (Optional) keep CLI installed for debugging/other heroku commands
-    - name: Install Heroku CLI
-      run: |
-        curl https://cli-assets.heroku.com/install.sh | sh
-        heroku --version
+      - name: Install Heroku CLI
+        run: |
+          curl https://cli-assets.heroku.com/install.sh | sh
+          heroku --version
 
-    # ✅ Non-interactive deploy: push via HTTPS remote with API key
-    # (No browser login prompts, no heroku git:remote)
-    - name: Push to Heroku (git over HTTPS with API key)
-      env:
-        HEROKU_API_KEY: ${{ secrets.HEROKU_API_KEY }}
-        HEROKU_APP_NAME: ${{ secrets.HEROKU_APP_NAME }}
-      run: |
-        git remote remove heroku 2>/dev/null || true
-        git remote add heroku "https://heroku:${HEROKU_API_KEY}@git.heroku.com/${HEROKU_APP_NAME}.git"
-        git push heroku HEAD:main --force
+      # ✅ Non-interactive deploy: push via HTTPS remote with API key
+      - name: Push to Heroku (git over HTTPS with API key)
+        env:
+          HEROKU_API_KEY: ${{ secrets.HEROKU_API_KEY }}
+          HEROKU_APP_NAME: ${{ secrets.HEROKU_APP_NAME }}
+        run: |
+          git remote remove heroku 2>/dev/null || true
+          git remote add heroku "https://heroku:${HEROKU_API_KEY}@git.heroku.com/${HEROKU_APP_NAME}.git"
+          git push heroku HEAD:main --force
 
-    - name: Post-deploy health check
-      env:
-        HEROKU_APP_NAME: ${{ secrets.HEROKU_APP_NAME }}
-      run: |
-        URL="https://${HEROKU_APP_NAME}.herokuapp.com/health"
-        echo "Checking $URL"
-        # retry a few times to allow dyno boot
-        for i in 1 2 3 4 5 6 7 8; do
-          if curl -fsS "$URL" > /dev/null; then
-            echo "✅ Health check passed"
-            exit 0
-          fi
-          echo "Waiting for app to boot... ($i/8)"
-          sleep 7
-        done
-        echo "❌ Health check failed"
-        exit 1
+      - name: Post-deploy health check
+        env:
+          HEROKU_APP_NAME: ${{ secrets.HEROKU_APP_NAME }}
+        run: |
+          URL="https://${HEROKU_APP_NAME}.herokuapp.com/health"
+          echo "Checking $URL"
+          for i in 1 2 3 4 5 6 7 8; do
+            if curl -fsS "$URL" > /dev/null; then
+              echo "✅ Health check passed"
+              exit 0
+            fi
+            echo "Waiting for app to boot... ($i/8)"
+            sleep 7
+          done
+          echo "❌ Health check failed"
+          exit 1
+
